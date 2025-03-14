@@ -299,7 +299,13 @@ async def process_pdf_async(report_id: str, file_path: str) -> None:
         report_id: The ID of the report
         file_path: Path to the PDF file
     """
-    from app.api.api_v1.endpoints.reports import update_report_status, update_report_analysis
+    # Try both import styles to support running from different directories
+    try:
+        # When running from project root
+        from backend.app.api.api_v1.endpoints.reports import update_report_status, update_report_analysis
+    except ModuleNotFoundError:
+        # When running from backend directory
+        from app.api.api_v1.endpoints.reports import update_report_status, update_report_analysis
     
     logger.info(f"Starting async processing of PDF for report {report_id}")
     

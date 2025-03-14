@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Create logs directory if it doesn't exist
-mkdir -p /app/logs
+mkdir -p logs
 
 # Print environment variables for debugging
 echo "PORT: $PORT"
@@ -19,5 +19,5 @@ export FINNHUB_API_KEY="cva4kk9r01qshflg23lgcva4kk9r01qshflg23m0"
 
 # Start the server with the correct port
 echo "Starting backend server on port $PORT..."
-python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT --timeout-keep-alive 300
 

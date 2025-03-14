@@ -11,8 +11,15 @@ from datetime import datetime
 from starlette.middleware.base import BaseHTTPMiddleware
 import time
 
-from app.api.api_v1.api import api_router
-from app.core.config import settings
+# Try both import styles to support running from different directories
+try:
+    # When running from project root
+    from backend.app.api.api_v1.api import api_router
+    from backend.app.core.config import settings
+except ModuleNotFoundError:
+    # When running from backend directory
+    from app.api.api_v1.api import api_router
+    from app.core.config import settings
 
 # Configure logging
 logging.basicConfig(

@@ -16,10 +16,15 @@ import PyPDF2
 # from app.core.auth import get_current_user
 # from app.services.pdf_processor import process_earnings_call_pdf
 
-# Import the PDF processor
-from app.services.pdf_processor import PDFProcessor
-# Import the Firebase service
-from app.services.firebase_service import FirebaseService
+# Try both import styles to support running from different directories
+try:
+    # When running from project root
+    from backend.app.services.pdf_processor import PDFProcessor
+    from backend.app.services.firebase_service import FirebaseService
+except ModuleNotFoundError:
+    # When running from backend directory
+    from app.services.pdf_processor import PDFProcessor
+    from app.services.firebase_service import FirebaseService
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

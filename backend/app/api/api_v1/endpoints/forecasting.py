@@ -9,7 +9,14 @@ import random
 import pandas as pd
 import time
 import requests
-from app.api.api_v1.endpoints.financial_data import MOCK_FINANCIAL_DATA, get_financial_data_for_ticker, get_default_tickers
+
+# Try both import styles to support running from different directories
+try:
+    # When running from project root
+    from backend.app.api.api_v1.endpoints.financial_data import MOCK_FINANCIAL_DATA, get_financial_data_for_ticker, get_default_tickers
+except ModuleNotFoundError:
+    # When running from backend directory
+    from app.api.api_v1.endpoints.financial_data import MOCK_FINANCIAL_DATA, get_financial_data_for_ticker, get_default_tickers
 
 # Finnhub API configuration
 FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY", "")
