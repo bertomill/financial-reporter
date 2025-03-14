@@ -11,11 +11,6 @@ import time
 from app.api.api_v1.endpoints.financial_data import MOCK_FINANCIAL_DATA, get_financial_data_for_ticker, get_default_tickers
 
 # Create a mock implementation for yfinance
-class MockYFinance:
-    @staticmethod
-    def Ticker(ticker_symbol):
-        return MockTicker(ticker_symbol)
-
 class MockTicker:
     def __init__(self, ticker_symbol):
         self.ticker = ticker_symbol
@@ -29,21 +24,18 @@ class MockTicker:
             "volume": random.randint(1000000, 50000000)
         }
 
-# Try to import yfinance, but provide a fallback if it's not available
-try:
-    import yfinance as yf
-    YFINANCE_AVAILABLE = True
-    logger = logging.getLogger(__name__)
-    logger.info("Using real yfinance package for stock information.")
-except ImportError:
-    logger = logging.getLogger(__name__)
-    logger.warning("yfinance package not available. Using mock implementation for stock information.")
-    YFINANCE_AVAILABLE = False
-    # Use our mock implementation
-    yf = MockYFinance()
+# Create a mock yf module
+class MockYF:
+    @staticmethod
+    def Ticker(ticker_symbol):
+        return MockTicker(ticker_symbol)
+
+# Use our mock implementation
+yf = MockYF()
+logger = logging.getLogger(__name__)
+logger.warning("Using mock implementation for yfinance")
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
 
 # Cache for data to avoid redundant processing
 DATA_CACHE = {}
