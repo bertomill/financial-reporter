@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import Layout from '../../components/Layout';
 import { useAuth } from '../../firebase/auth';
 import axios from 'axios';
+import { toast } from 'react-hot-toast';
 
 const API_URL = 'http://localhost:8000';
 
@@ -34,11 +35,15 @@ type Report = {
   id: string;
   file_name: string;
   upload_date: string;
-  status: 'processing' | 'completed' | 'failed' | 'extracted' | 'uploaded';
+  status: 'processing' | 'completed' | 'failed' | 'extracted' | 'uploaded' | 'analyzing';
   user_id: string;
   analysis?: ReportAnalysis;
   error?: string;
-  extracted_text?: string;
+  text_sample?: string;
+  text_length?: number;
+  word_count?: number;
+  page_count?: number;
+  sections_processed?: number;
 };
 
 export default function ReportDetails() {
@@ -50,6 +55,7 @@ export default function ReportDetails() {
   const [error, setError] = useState('');
   const [refreshInterval, setRefreshInterval] = useState<NodeJS.Timeout | null>(null);
   const [backendStatus, setBackendStatus] = useState<'online' | 'offline'>('online');
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   useEffect(() => {
     // Redirect if not logged in
@@ -107,24 +113,36 @@ export default function ReportDetails() {
   };
 
   const handleAnalyze = async () => {
+    if (!report) return;
+    
     try {
-      setLoading(true);
-      const response = await axios.post(`${API_URL}/api/v1/reports/${id}/analyze`);
-      console.log('Analysis triggered:', response.data);
-      // Update the report status
-      setReport(prev => prev ? { ...prev, status: 'processing' } : null);
+      setIsAnalyzing(true);
       
-      // Set up automatic refresh to check progress
-      const interval = setInterval(() => {
-        fetchReport();
-      }, 5000); // Refresh every 5 seconds
+      // Call the analyze endpoint
+      const response = await axios.post(`${API_URL}/api/v1/reports/${report.id}/analyze`);
       
-      setRefreshInterval(interval);
+      // Start polling for updates
+      const interval = setInterval(async () => {
+        const updatedReport = await fetchReport();
+        
+        // If analysis is complete, stop polling
+        if (updatedReport.status === 'completed' || updatedReport.status === 'failed') {
+          clearInterval(interval);
+          setIsAnalyzing(false);
+        }
+      }, 2000);
+      
+      // Set a timeout to stop polling after 5 minutes
+      setTimeout(() => {
+        clearInterval(interval);
+        setIsAnalyzing(false);
+      }, 5 * 60 * 1000);
+      
+      toast.success('Analysis started successfully');
     } catch (error) {
-      console.error('Error triggering analysis:', error);
-      setError('Failed to start analysis. Please try again later.');
-    } finally {
-      setLoading(false);
+      console.error('Error starting analysis:', error);
+      setIsAnalyzing(false);
+      toast.error('Failed to start analysis');
     }
   };
 
@@ -205,25 +223,48 @@ export default function ReportDetails() {
                         {(report.status === 'extracted' || report.status === 'uploaded') && (
                           <button
                             onClick={handleAnalyze}
+                            disabled={isAnalyzing}
                             className="ml-3 inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                            disabled={loading}
                           >
-                            {loading ? 'Starting...' : 'Analyze with AI'}
+                            {isAnalyzing ? 'Starting...' : 'Analyze with AI'}
                           </button>
                         )}
                       </dd>
                     </div>
                     
-                    {report.extracted_text && (
-                      <div className="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                        <dt className="text-sm font-medium text-gray-500">Extracted Text</dt>
-                        <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                          <div className="max-h-60 overflow-y-auto">
-                            <pre className="text-xs whitespace-pre-wrap font-mono bg-gray-50 p-3 rounded">
-                              {report.extracted_text}
-                            </pre>
+                    {report.status === 'extracted' && (
+                      <div className="mt-8">
+                        <h3 className="text-lg font-medium text-gray-900">Extracted Text</h3>
+                        <div className="mt-4 bg-gray-50 p-4 rounded-md">
+                          <div className="flex justify-between mb-4">
+                            <div>
+                              <p className="text-sm text-gray-500">
+                                <span className="font-medium">Document Statistics:</span>
+                              </p>
+                              <ul className="mt-1 text-sm text-gray-500 list-disc list-inside">
+                                {report.page_count && <li>Pages: {report.page_count}</li>}
+                                {report.word_count && <li>Words: {report.word_count.toLocaleString()}</li>}
+                                {report.text_length && <li>Characters: {report.text_length.toLocaleString()}</li>}
+                                {report.sections_processed && <li>Sections processed: {report.sections_processed}</li>}
+                              </ul>
+                            </div>
+                            <button
+                              onClick={handleAnalyze}
+                              disabled={isAnalyzing}
+                              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                            >
+                              {isAnalyzing ? 'Analyzing...' : 'Analyze Text'}
+                            </button>
                           </div>
-                        </dd>
+                          <div className="mt-4">
+                            <p className="text-sm text-gray-500">
+                              <span className="font-medium">Text Sample:</span>
+                            </p>
+                            <div className="mt-2 p-3 bg-white rounded border border-gray-200 text-sm text-gray-800 max-h-60 overflow-y-auto">
+                              {report.text_sample || "No text sample available"}
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     )}
                     

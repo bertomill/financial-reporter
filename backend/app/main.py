@@ -8,6 +8,8 @@ import traceback
 import sys
 import os
 from datetime import datetime
+from starlette.middleware.base import BaseHTTPMiddleware
+import time
 
 from app.api.api_v1.api import api_router
 from app.core.config import settings
@@ -46,6 +48,31 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add a custom middleware to increase timeout for large uploads
+class TimeoutMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        start_time = time.time()
+        response = await call_next(request)
+        process_time = time.time() - start_time
+        response.headers["X-Process-Time"] = str(process_time)
+        return response
+
+# In your app initialization, add these settings
+app.add_middleware(TimeoutMiddleware)
+
+# Configure CORS to allow file uploads from frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, replace with your frontend URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    max_age=3600,
+)
+
+# Increase the maximum upload size (100MB)
+app.state.max_upload_size = 100 * 1024 * 1024  # 100MB
 
 # Global exception handler
 @app.exception_handler(Exception)

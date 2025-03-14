@@ -2,6 +2,7 @@
   "/_app": "pages/_app.js",
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
-  "/financial-data": "pages/financial-data.js",
-  "/forecasting": "pages/forecasting.js"
+  "/": "pages/index.js",
+  "/upload": "pages/upload.js",
+  "/reports/[id]": "pages/reports/[id].js"
 }

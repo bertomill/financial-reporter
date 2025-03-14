@@ -39,9 +39,9 @@ export default function Upload() {
         return;
       }
       
-      // Validate file size (max 10MB)
-      if (selectedFile.size > 10 * 1024 * 1024) {
-        setErrorMessage('File size exceeds 10MB limit');
+      // Validate file size (max 100MB)
+      if (selectedFile.size > 100 * 1024 * 1024) {
+        setErrorMessage('File size exceeds 100MB limit');
         setFile(null);
         return;
       }
@@ -58,39 +58,115 @@ export default function Upload() {
       setIsUploading(true);
       setUploadStatus('uploading');
       setUploadProgress(0);
+      setErrorMessage('');
       
-      // Simulate progress updates
-      const progressInterval = setInterval(() => {
-        setUploadProgress(prev => {
-          if (prev >= 90) {
-            clearInterval(progressInterval);
-            return 90;
+      // Create form data
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('user_id', currentUser.uid);
+      
+      // Implement retry logic for large uploads
+      const maxRetries = 3;
+      let retryCount = 0;
+      let uploadSuccessful = false;
+      
+      while (retryCount < maxRetries && !uploadSuccessful) {
+        try {
+          // Upload directly to backend with progress tracking
+          const response = await axios.post(`${API_URL}/api/v1/reports/upload`, formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+            },
+            onUploadProgress: (progressEvent) => {
+              const percentCompleted = Math.round(
+                (progressEvent.loaded * 100) / (progressEvent.total || 1)
+              );
+              setUploadProgress(percentCompleted);
+            },
+            // Increase timeout for large files
+            timeout: 600000, // 10 minutes
+          });
+          
+          console.log('Upload response:', response.data);
+          uploadSuccessful = true;
+          
+          setUploadStatus('processing');
+          
+          // Poll for report status
+          const reportId = response.data.id;
+          const statusCheckInterval = setInterval(async () => {
+            try {
+              const statusResponse = await axios.get(`${API_URL}/api/v1/reports/${reportId}`);
+              const reportStatus = statusResponse.data.status;
+              
+              console.log('Report status:', reportStatus);
+              
+              if (reportStatus === 'extracted' || reportStatus === 'completed' || reportStatus === 'failed') {
+                clearInterval(statusCheckInterval);
+                
+                if (reportStatus === 'failed') {
+                  setUploadStatus('error');
+                  setErrorMessage(`Processing failed: ${statusResponse.data.error || 'Unknown error'}`);
+                } else {
+                  setUploadStatus('success');
+                  // Redirect to the specific report
+                  router.push(`/reports/${reportId}`);
+                }
+              } else if (reportStatus === 'processing' && statusResponse.data.error) {
+                // Show processing progress if available
+                setErrorMessage(`Processing: ${statusResponse.data.error}`);
+              }
+            } catch (error) {
+              console.error('Error checking report status:', error);
+            }
+          }, 3000); // Check every 3 seconds
+          
+          // Clear interval after 10 minutes to prevent infinite polling
+          setTimeout(() => {
+            clearInterval(statusCheckInterval);
+            if (uploadStatus === 'processing') {
+              setUploadStatus('success');
+              router.push('/reports');
+            }
+          }, 600000);
+          
+        } catch (error) {
+          retryCount++;
+          console.error(`Upload attempt ${retryCount} failed:`, error);
+          
+          if (retryCount < maxRetries) {
+            // Show retry message
+            setErrorMessage(`Upload timed out. Retrying (${retryCount}/${maxRetries})...`);
+            // Wait before retrying
+            await new Promise(resolve => setTimeout(resolve, 3000));
+          } else {
+            // All retries failed
+            throw error;
           }
-          return prev + 10;
-        });
-      }, 300);
-
-      // Upload the file
-      const result = await uploadPDF(file, currentUser.uid, (progress) => {
-        setUploadProgress(Math.round(progress));
-      });
-
-      clearInterval(progressInterval);
-      setUploadProgress(100);
-      setUploadStatus('processing');
+        }
+      }
       
-      console.log('Upload result:', result);
-      
-      // Wait 2 seconds before redirecting to show the success message
-      setTimeout(() => {
-        setUploadStatus('success');
-        // Redirect to the reports page instead of a specific report
-        router.push('/reports');
-      }, 2000);
     } catch (error) {
-      console.error('Upload error:', error);
+      console.error('Error uploading PDF:', error);
       setUploadStatus('error');
-      if (error instanceof Error) {
+      
+      // More detailed error handling
+      if (axios.isAxiosError(error)) {
+        console.error('Axios error details:', {
+          data: error.response?.data,
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          message: error.message
+        });
+        
+        if (error.code === 'ECONNABORTED') {
+          setErrorMessage('Upload timed out after multiple attempts. Try a smaller file or check your network connection.');
+        } else if (error.response?.status === 413) {
+          setErrorMessage('File size exceeds the server limit.');
+        } else {
+          setErrorMessage(`Upload failed: ${error.message}`);
+        }
+      } else if (error instanceof Error) {
         setErrorMessage(`Upload failed: ${error.message}`);
       } else {
         setErrorMessage('Upload failed: Unknown error');
@@ -193,7 +269,7 @@ export default function Upload() {
                           </label>
                           <p className="pl-1">or drag and drop</p>
                         </div>
-                        <p className="text-xs text-gray-500">PDF up to 10MB</p>
+                        <p className="text-xs text-gray-500">PDF up to 100MB</p>
                       </div>
                     </div>
                     {file && (

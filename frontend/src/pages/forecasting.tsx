@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Search, TrendingUp, DollarSign, BarChart3, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { Search, TrendingUp, DollarSign, BarChart3, ArrowUpRight, ArrowDownRight, Newspaper } from 'lucide-react';
 import Layout from '../components/Layout';
 
 // shadcn/ui components
@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Slider } from "../components/ui/slider";
 import { Badge } from "../components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
 
 // API URL
 const API_URL = 'http://localhost:8000';
@@ -53,26 +54,60 @@ interface CompanyOption {
   name: string;
 }
 
+interface StockQuote {
+  company: string;
+  ticker: string;
+  current_price: number;
+  change: number;
+  percent_change: number;
+  high: number;
+  low: number;
+  open: number;
+  previous_close: number;
+  timestamp: string;
+}
+
+interface NewsItem {
+  id: number;
+  headline: string;
+  summary: string;
+  source: string;
+  url: string;
+  datetime: string;
+  related: string;
+}
+
+interface NewsData {
+  category: string;
+  news: NewsItem[];
+}
+
 const ForecastingPage: React.FC = () => {
   const [forecastData, setForecastData] = useState<ForecastData | null>(null);
+  const [quoteData, setQuoteData] = useState<StockQuote | null>(null);
+  const [newsData, setNewsData] = useState<NewsData | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<CompanyOption[]>([]);
   const [selectedTicker, setSelectedTicker] = useState<string>('');
   const [forecastType, setForecastType] = useState<'revenue' | 'eps'>('revenue');
   const [periods, setPeriods] = useState<number>(4);
   const [isLoading, setIsLoading] = useState(false);
+  const [isQuoteLoading, setIsQuoteLoading] = useState(false);
+  const [isNewsLoading, setIsNewsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [supportedTickers, setSupportedTickers] = useState<CompanyOption[]>([]);
 
   // Fetch supported tickers on component mount
   useEffect(() => {
     fetchSupportedTickers();
+    fetchMarketNews();
   }, []);
 
   // Fetch forecast data when ticker or forecast type changes
   useEffect(() => {
     if (selectedTicker) {
       fetchForecastData(selectedTicker, forecastType, periods);
+      fetchStockQuote(selectedTicker);
     }
   }, [selectedTicker, forecastType, periods]);
 
@@ -101,6 +136,32 @@ const ForecastingPage: React.FC = () => {
       setError(err.response?.data?.detail || `Failed to fetch ${type} forecast. Please try again later.`);
       setForecastData(null);
       setIsLoading(false);
+    }
+  };
+
+  const fetchStockQuote = async (ticker: string) => {
+    try {
+      setIsQuoteLoading(true);
+      const response = await axios.get(`${API_URL}/api/v1/forecasting/quote?ticker=${ticker}`);
+      setQuoteData(response.data);
+      setIsQuoteLoading(false);
+    } catch (err: any) {
+      console.error('Error fetching stock quote:', err);
+      setQuoteData(null);
+      setIsQuoteLoading(false);
+    }
+  };
+
+  const fetchMarketNews = async (category: string = 'general') => {
+    try {
+      setIsNewsLoading(true);
+      const response = await axios.get(`${API_URL}/api/v1/forecasting/market-news?category=${category}`);
+      setNewsData(response.data);
+      setIsNewsLoading(false);
+    } catch (err: any) {
+      console.error('Error fetching market news:', err);
+      setNewsData(null);
+      setIsNewsLoading(false);
     }
   };
 
@@ -142,6 +203,10 @@ const ForecastingPage: React.FC = () => {
     return `$${value.toFixed(2)}B`;
   };
 
+  const formatPrice = (value: number) => {
+    return `$${value.toFixed(2)}`;
+  };
+
   const formatPercentage = (value: number) => {
     return `${value.toFixed(2)}%`;
   };
@@ -175,8 +240,14 @@ const ForecastingPage: React.FC = () => {
     ];
   };
 
+  // Format date for news items
+  const formatNewsDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
   return (
-    <Layout>
+    <Layout title="Financial Forecasting" description="Analyze future financial performance with our forecasting tools">
       <div className="container mx-auto py-6">
         <div className="flex flex-col space-y-6">
           <div className="flex justify-between items-center">
@@ -241,12 +312,55 @@ const ForecastingPage: React.FC = () => {
             </div>
           </div>
           
+          {/* Real-time Quote */}
+          {!isQuoteLoading && quoteData && (
+            <Card className="bg-gray-50">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex justify-between items-center">
+                  <span>{quoteData.company} ({quoteData.ticker})</span>
+                  <Badge className={quoteData.percent_change >= 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                    {quoteData.percent_change >= 0 ? '+' : ''}{formatPercentage(quoteData.percent_change)}
+                  </Badge>
+                </CardTitle>
+                <CardDescription>
+                  Real-time market data
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-500">Current Price</p>
+                    <p className="text-xl font-bold">{formatPrice(quoteData.current_price)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Change</p>
+                    <p className={`text-md font-medium ${getValueColor(quoteData.change)}`}>
+                      {quoteData.change >= 0 ? '+' : ''}{formatPrice(quoteData.change)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Day Range</p>
+                    <p className="text-md">{formatPrice(quoteData.low)} - {formatPrice(quoteData.high)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Open</p>
+                    <p className="text-md">{formatPrice(quoteData.open)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Previous Close</p>
+                    <p className="text-md">{formatPrice(quoteData.previous_close)}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          
           {/* Forecast Controls */}
           {selectedTicker && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <p className="text-sm font-medium mb-2">Forecast Type</p>
-                <Tabs value={forecastType} onValueChange={(value) => setForecastType(value as 'revenue' | 'eps')}>
+                <Tabs value={forecastType} onValueChange={(value: string) => setForecastType(value as 'revenue' | 'eps')}>
                   <TabsList className="grid w-full grid-cols-2">
                     <TabsTrigger value="revenue">Revenue</TabsTrigger>
                     <TabsTrigger value="eps">EPS</TabsTrigger>
@@ -261,7 +375,7 @@ const ForecastingPage: React.FC = () => {
                   min={1}
                   max={12}
                   step={1}
-                  onValueChange={(value) => setPeriods(value[0])}
+                  onValueChange={(value: number[]) => setPeriods(value[0])}
                 />
               </div>
             </div>
@@ -269,9 +383,10 @@ const ForecastingPage: React.FC = () => {
           
           {/* Error Message */}
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-800 rounded-md p-4">
-              <p>{error}</p>
-            </div>
+            <Alert variant="destructive">
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
           
           {/* Loading State */}
@@ -418,6 +533,52 @@ const ForecastingPage: React.FC = () => {
               </Card>
             </div>
           )}
+          
+          {/* Market News Section */}
+          <div className="mt-8">
+            <div className="flex items-center mb-4">
+              <Newspaper className="h-5 w-5 mr-2" />
+              <h2 className="text-xl font-bold">Market News</h2>
+            </div>
+            
+            {isNewsLoading ? (
+              <div className="space-y-4">
+                <Skeleton className="h-20 w-full" />
+                <Skeleton className="h-20 w-full" />
+                <Skeleton className="h-20 w-full" />
+              </div>
+            ) : newsData && newsData.news.length > 0 ? (
+              <div className="space-y-4">
+                {newsData.news.slice(0, 5).map((item) => (
+                  <Card key={item.id}>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-md font-medium">{item.headline}</CardTitle>
+                      <CardDescription>{item.source} • {formatNewsDate(item.datetime)}</CardDescription>
+                    </CardHeader>
+                    <CardContent className="pb-2">
+                      <p className="text-sm text-gray-600">{item.summary}</p>
+                    </CardContent>
+                    <CardFooter>
+                      <a 
+                        href={item.url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-sm text-blue-600 hover:underline"
+                      >
+                        Read more
+                      </a>
+                    </CardFooter>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <Card>
+                <CardContent className="py-4">
+                  <p className="text-gray-500 text-center">No market news available at the moment.</p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </div>
       </div>
     </Layout>

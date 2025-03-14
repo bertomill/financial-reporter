@@ -47,11 +47,25 @@ class PDFProcessor:
                 
                 logger.info(f"PDF has {num_pages} pages")
                 
+                # Process pages in smaller batches to avoid memory issues
                 for page_num in range(num_pages):
-                    page = reader.pages[page_num]
-                    page_text = page.extract_text()
-                    text += page_text + "\n\n"
-                    
+                    try:
+                        # Use a memory-efficient approach by processing one page at a time
+                        page = reader.pages[page_num]
+                        page_text = page.extract_text()
+                        text += page_text + "\n\n"
+                        
+                        # Free up memory
+                        page = None
+                        
+                        # Log progress for larger documents
+                        if page_num > 0 and (page_num % 10 == 0 or page_num == num_pages - 1):
+                            logger.info(f"Processed {page_num + 1}/{num_pages} pages")
+                    except Exception as e:
+                        logger.error(f"Error extracting text from page {page_num}: {str(e)}")
+                        text += f"[Error extracting page {page_num}]\n\n"
+                        continue
+                
             logger.info(f"Successfully extracted {len(text)} characters from PDF")
             return text
             

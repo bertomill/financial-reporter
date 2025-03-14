@@ -1,4 +1,4 @@
-import React, { ReactNode } from 'react';
+import React, { ReactNode, useState } from 'react';
 import { useAuth } from '../firebase/auth';
 import { useRouter } from 'next/router';
 import SimpleSidebar from './SimpleSidebar';
@@ -13,10 +13,16 @@ interface LayoutProps {
 export default function Layout({ children, title, description }: LayoutProps) {
   const { currentUser, logout } = useAuth();
   const router = useRouter();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const handleLogout = async () => {
     await logout();
     router.push('/login');
+  };
+
+  // Function to handle sidebar collapse state
+  const handleSidebarCollapse = (collapsed: boolean) => {
+    setSidebarCollapsed(collapsed);
   };
 
   return (
@@ -57,10 +63,8 @@ export default function Layout({ children, title, description }: LayoutProps) {
         </nav>
 
         <div className="flex h-[calc(100vh-4rem)]">
-          {/* Sidebar */}
-          <div className="w-64 bg-white shadow-sm border-r">
-            <SimpleSidebar />
-          </div>
+          {/* Sidebar - no fixed width container, let SimpleSidebar control its width */}
+          <SimpleSidebar onCollapse={handleSidebarCollapse} />
           
           {/* Main content */}
           <div className="flex-1 overflow-auto p-6">

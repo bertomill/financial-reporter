@@ -76,8 +76,43 @@ class FirebaseService:
         """
         if db:
             try:
+                # Check if there's a large extracted_text field
+                if "extracted_text" in update_data and len(update_data["extracted_text"]) > 900000:  # ~900KB limit
+                    logger.info(f"Large extracted text detected ({len(update_data['extracted_text'])} bytes), chunking...")
+                    
+                    # Get the full text
+                    full_text = update_data["extracted_text"]
+                    
+                    # Create a summary (first 1000 chars + last 1000 chars)
+                    text_summary = full_text[:1000] + "... [TEXT TRUNCATED DUE TO SIZE] ..." + full_text[-1000:]
+                    
+                    # Replace the full text with the summary in the main document
+                    update_data["extracted_text"] = text_summary
+                    update_data["text_truncated"] = True
+                    update_data["full_text_size"] = len(full_text)
+                    
+                    # Store the full text in chunks
+                    chunk_size = 500000  # ~500KB per chunk
+                    num_chunks = (len(full_text) + chunk_size - 1) // chunk_size  # Ceiling division
+                    
+                    # Create chunks collection for this report
+                    for i in range(num_chunks):
+                        start_idx = i * chunk_size
+                        end_idx = min((i + 1) * chunk_size, len(full_text))
+                        chunk_text = full_text[start_idx:end_idx]
+                        
+                        # Store chunk in a subcollection
+                        db.collection("reports").document(report_id).collection("text_chunks").document(f"chunk_{i}").set({
+                            "text": chunk_text,
+                            "chunk_index": i,
+                            "start_position": start_idx,
+                            "end_position": end_idx
+                        })
+                    
+                    logger.info(f"Text successfully chunked into {num_chunks} parts")
+                
                 # Update the report
-                db.collection('reports').document(report_id).update(update_data)
+                db.collection("reports").document(report_id).update(update_data)
                 logger.info(f"Report {report_id} updated in Firebase")
                 return True
             except Exception as e:
@@ -200,4 +235,41 @@ class FirebaseService:
                 return True
             else:
                 logger.warning(f"Report {report_id} not found in mock storage")
-                return False 
+                return False
+
+    @staticmethod
+    def get_full_text(report_id: str) -> str:
+        """Get the full text of a report by combining chunks if necessary.
+        
+        Args:
+            report_id: The ID of the report
+            
+        Returns:
+            The full text of the report
+        """
+        try:
+            # Get the report
+            report = FirebaseService.get_report(report_id)
+            
+            # Check if text was truncated
+            if report and report.get("text_truncated"):
+                logger.info(f"Report {report_id} has truncated text, retrieving chunks...")
+                
+                # Get all chunks
+                chunks_ref = db.collection("reports").document(report_id).collection("text_chunks").order_by("chunk_index")
+                chunks = chunks_ref.get()
+                
+                # Combine chunks
+                full_text = ""
+                for chunk in chunks:
+                    chunk_data = chunk.to_dict()
+                    full_text += chunk_data.get("text", "")
+                
+                logger.info(f"Successfully retrieved full text ({len(full_text)} bytes) from {len(chunks)} chunks")
+                return full_text
+            else:
+                # Return the extracted text directly
+                return report.get("extracted_text", "") if report else ""
+        except Exception as e:
+            logger.error(f"Error getting full text for report {report_id}: {str(e)}")
+            return report.get("extracted_text", "") if report else "" 
