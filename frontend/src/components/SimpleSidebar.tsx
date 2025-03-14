@@ -40,6 +40,9 @@ export default function SimpleSidebar() {
             <Link href="/financial-data" className={`${linkStyle} ${isActive('/financial-data') ? activeLinkStyle : inactiveLinkStyle}`}>
               Financial Data
             </Link>
+            <Link href="/forecasting" className={`${linkStyle} ${isActive('/forecasting') ? activeLinkStyle : inactiveLinkStyle}`}>
+              Forecasting
+            </Link>
             <Link href="/trends" className={`${linkStyle} ${isActive('/trends') ? activeLinkStyle : inactiveLinkStyle}`}>
               Trends
             </Link>

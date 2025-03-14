@@ -26,6 +26,11 @@
       "static/chunks/webpack.js",
       "static/chunks/main.js",
       "static/chunks/pages/financial-data.js"
+    ],
+    "/forecasting": [
+      "static/chunks/webpack.js",
+      "static/chunks/main.js",
+      "static/chunks/pages/forecasting.js"
     ]
   },
   "ampFirstPages": []
