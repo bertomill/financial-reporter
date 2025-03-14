@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Create logs directory if it doesn't exist
-mkdir -p logs
+mkdir -p /app/logs
 
 # Print environment variables for debugging
 echo "PORT: $PORT"
